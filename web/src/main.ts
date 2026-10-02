@@ -33,6 +33,8 @@ export const Model = S.Struct({
   tabs: Tabs.Model,
   activePanel: Panel,
   trailQuarters: S.Number,
+  /** Quarter whose callout is showing on the map (hover, focus, or tap). */
+  hoveredQuarter: S.Option(S.String),
 });
 export type Model = typeof Model.Type;
 
@@ -41,6 +43,9 @@ export type Model = typeof Model.Type;
 export const Message = defineMessageUnion({
   ClickedRetry: {},
   SelectedTrailQuarters: { quarters: S.Number },
+  HoveredQuarter: { date: S.String },
+  UnhoveredQuarter: {},
+  ClickedQuarter: { date: S.String },
   SucceededFetchRegime: { snapshot: RegimeSnapshot },
   FailedFetchRegime: { error: S.String },
   GotTabsMessage: { message: Tabs.Message },
@@ -99,6 +104,17 @@ export const update = (
     SelectedTrailQuarters: ({ quarters }) => ({
       model: modifyFields(model, { trailQuarters: () => quarters }),
     }),
+    HoveredQuarter: ({ date }) => ({
+      model: modifyFields(model, { hoveredQuarter: () => Option.some(date) }),
+    }),
+    UnhoveredQuarter: () => ({
+      model: modifyFields(model, { hoveredQuarter: () => Option.none() }),
+    }),
+    // Touch screens have no hover: a tap shows the callout, and tapping
+    // elsewhere blurs the dot, which dispatches UnhoveredQuarter.
+    ClickedQuarter: ({ date }) => ({
+      model: modifyFields(model, { hoveredQuarter: () => Option.some(date) }),
+    }),
     SucceededFetchRegime: ({ snapshot }) => ({
       model: modifyFields(model, {
         regime: () => RegimeData.Success({ data: snapshot }),
@@ -118,6 +134,7 @@ export const init: Runtime.ApplicationInit<Model, Message> = () => ({
     tabs: Tabs.init({ id: "panels" }),
     activePanel: "Quadrant map",
     trailQuarters: 12,
+    hoveredQuarter: Option.none(),
   },
   commands: [FetchRegime()],
 });
@@ -185,10 +202,16 @@ const mapPanel = (h: HtmlBuilder<Message>, model: Model, history: ReadonlyArray<
     [h.Class("flex flex-col items-center gap-4")],
     [
       trailPicker(h, model.trailQuarters),
-      quadrantMap(h, history.slice(-model.trailQuarters)),
+      quadrantMap(h, {
+        trail: history.slice(-model.trailQuarters),
+        hovered: model.hoveredQuarter,
+        onHover: (date) => Message.HoveredQuarter({ date }),
+        onUnhover: Message.UnhoveredQuarter(),
+        onSelect: (date) => Message.ClickedQuarter({ date }),
+      }),
       h.p(
         [h.Class("max-w-prose text-center text-sm text-slate-500 dark:text-slate-400")],
-        ["Large dot is the latest quarter; the dashed trail runs oldest (faint) to newest. Hover a dot for its values."],
+        ["Large dot is the latest quarter; the dashed trail runs oldest (faint) to newest. Hover, tap, or tab to a dot for its values."],
       ),
     ],
   );
