@@ -1,4 +1,5 @@
-packages: []
+packages:
+  - web
 allowBuilds:
   workerd: true
 minimumReleaseAgeExclude:
@@ -22,3 +23,6 @@ minimumReleaseAgeExclude:
   - '@distilled.cloud/stripe@1.0.0-rc.13'
   - '@distilled.cloud/zerossl@1.0.0-rc.13'
   - alchemy@2.0.0-beta.80
+  - '@foldkit/ui@0.165.0'
+  - foldkit@0.165.0
+  - '@foldkit/vite-plugin@0.26.0'

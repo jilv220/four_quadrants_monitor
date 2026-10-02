@@ -14,11 +14,16 @@ export default Alchemy.Stack(
   Effect.gen(function* () {
     const bucket = yield* Bucket;
     const worker = yield* Worker;
+    const website = yield* Cloudflare.Website.Foldkit("Website", {
+      rootDir: "web",
+      env: { VITE_API_URL: worker.url.as<string>() },
+    });
 
     return {
       bucketName: bucket.bucketName,
       url: worker.url,
       crons: worker.crons,
+      websiteUrl: website.url,
     };
   }),
 );
