@@ -1,3 +1,4 @@
+import { Option } from "effect";
 import type { Html, HtmlBuilder } from "foldkit/html";
 
 import {
@@ -34,9 +35,61 @@ const axisBound = (values: ReadonlyArray<number>): number => {
 
 const clamp = (v: number, bound: number) => Math.max(-bound, Math.min(bound, v));
 
+export interface QuadrantMapInputs<Message> {
+  readonly trail: ReadonlyArray<RegimePoint>;
+  /** Quarter date (`YYYY-MM-DD`) whose callout is showing, if any. */
+  readonly hovered: Option.Option<string>;
+  readonly onHover: (date: string) => Message;
+  readonly onUnhover: Message;
+  /** Tap/click shows the callout — hover doesn't exist on touch screens. */
+  readonly onSelect: (date: string) => Message;
+}
+
+const TIP_W = 176;
+const TIP_H = 62;
+const TIP_GAP = 12;
+
+/** Callout box next to a point, flipped to stay inside the viewBox. */
+const callout = <Message>(
+  h: HtmlBuilder<Message>,
+  p: RegimePoint,
+  px: number,
+  py: number,
+  clipped: boolean,
+): Html => {
+  const left = px + TIP_GAP + TIP_W > SIZE ? px - TIP_GAP - TIP_W : px + TIP_GAP;
+  const top = Math.min(Math.max(py - TIP_H / 2, 4), SIZE - TIP_H - 4);
+  const line = (text: string, dy: number, cls: string) =>
+    h.text([h.X((left + 10).toFixed(1)), h.Y((top + dy).toFixed(1)), h.Class(cls)], [text]);
+  const value = "fill-slate-700 text-[11px] tabular-nums dark:fill-slate-200";
+  return h.g(
+    [h.Class("pointer-events-none"), h.Attribute("aria-hidden", "true")],
+    [
+      h.rect(
+        [
+          h.X(left.toFixed(1)),
+          h.Y(top.toFixed(1)),
+          h.Width(String(TIP_W)),
+          h.Height(String(TIP_H)),
+          h.Attribute("rx", "6"),
+          h.Class("fill-white stroke-slate-300 drop-shadow-md dark:fill-slate-800 dark:stroke-slate-600"),
+        ],
+        [],
+      ),
+      line(
+        `${quarterLabel(p.date)} · ${p.quadrant}${clipped ? " (off scale)" : ""}`,
+        19,
+        "fill-slate-900 text-[12px] font-semibold dark:fill-slate-50",
+      ),
+      line(`Growth news ${pp(p.growthNews)}`, 37, value),
+      line(`Inflation news ${pp(p.inflationNews)}`, 53, value),
+    ],
+  );
+};
+
 export const quadrantMap = <Message>(
   h: HtmlBuilder<Message>,
-  trail: ReadonlyArray<RegimePoint>,
+  { trail, hovered, onHover, onUnhover, onSelect }: QuadrantMapInputs<Message>,
 ): Html => {
   const xMax = axisBound(trail.map((p) => p.inflationNews));
   const yMax = axisBound(trail.map((p) => p.growthNews));
@@ -99,36 +152,59 @@ export const quadrantMap = <Message>(
     // Older quarters fade out so the direction of travel reads at a glance.
     const opacity = trail.length === 1 ? 1 : 0.25 + (0.75 * i) / last;
     const clipped = isClipped(p);
+    const isHovered = Option.contains(hovered, p.date);
     const { dot, stroke } = quadrantInfo[p.quadrant];
-    return h.circle(
+    const cx = n(x(p.inflationNews));
+    const cy = n(y(p.growthNews));
+    const radius = isCurrent ? 7 : clipped ? 5 : 4;
+    return h.g(
       [
-        h.Cx(n(x(p.inflationNews))),
-        h.Cy(n(y(p.growthNews))),
-        h.R(isCurrent ? "7" : clipped ? "5" : "4"),
-        h.Class(
-          clipped
-            ? `fill-none ${stroke} stroke-2`
-            : `${dot} ${isCurrent ? "stroke-white stroke-2 dark:stroke-slate-900" : ""}`,
+        h.Key(p.date),
+        h.Tabindex(0),
+        h.Role("button"),
+        h.AriaLabel(
+          `${quarterLabel(p.date)}, ${p.quadrant}: growth news ${pp(p.growthNews)}, inflation news ${pp(p.inflationNews)}`,
         ),
-        h.Attribute(clipped ? "stroke-opacity" : "fill-opacity", opacity.toFixed(2)),
+        h.OnMouseEnter(onHover(p.date)),
+        h.OnMouseLeave(onUnhover),
+        h.OnFocus(onHover(p.date)),
+        h.OnBlur(onUnhover),
+        h.OnClick(onSelect(p.date)),
+        h.Class("cursor-pointer outline-none"),
       ],
       [
-        h.title(
-          [],
+        // Invisible, larger hit target: the visible dots are only 8px wide.
+        h.circle([h.Cx(cx), h.Cy(cy), h.R("11"), h.Fill("transparent")], []),
+        h.circle(
           [
-            `${quarterLabel(p.date)} · ${p.quadrant}${clipped ? " (off scale)" : ""}\ngrowth news ${pp(p.growthNews)}\ninflation news ${pp(p.inflationNews)}`,
+            h.Cx(cx),
+            h.Cy(cy),
+            h.R(String(isHovered ? radius + 2 : radius)),
+            h.Class(
+              clipped
+                ? `fill-none ${stroke} stroke-2`
+                : `${dot} ${isCurrent || isHovered ? "stroke-white stroke-2 dark:stroke-slate-900" : ""}`,
+            ),
+            h.Attribute(
+              clipped ? "stroke-opacity" : "fill-opacity",
+              isHovered ? "1" : opacity.toFixed(2),
+            ),
           ],
+          [],
         ),
       ],
     );
   });
 
   const current = trail[last];
+  const hoveredPoint = Option.flatMap(hovered, (date) =>
+    Option.fromNullishOr(trail.find((p) => p.date === date)),
+  );
 
   return h.svg(
     [
       h.ViewBox(`0 0 ${SIZE} ${SIZE}`),
-      h.Role("img"),
+      h.Role("group"),
       h.AriaLabel(
         current
           ? `Quadrant map: ${current.quadrant} in ${quarterLabel(current.date)}`
@@ -175,6 +251,11 @@ export const quadrantMap = <Message>(
         [],
       ),
       ...points,
+      // Drawn last so it sits above every dot.
+      ...Option.match(hoveredPoint, {
+        onNone: () => [],
+        onSome: (p) => [callout(h, p, x(p.inflationNews), y(p.growthNews), isClipped(p))],
+      }),
     ],
   );
 };
