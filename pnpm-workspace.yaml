@@ -1,0 +1,28 @@
+packages:
+  - web
+allowBuilds:
+  workerd: true
+minimumReleaseAgeExclude:
+  - '@alchemy.run/cloudflare-runtime@2.0.0-beta.80'
+  - '@alchemy.run/floci@2.0.0-beta.80'
+  - '@alchemy.run/node-utils@2.0.0-beta.80'
+  - '@distilled.cloud/acme@1.0.0-rc.13'
+  - '@distilled.cloud/aws@1.0.0-rc.13'
+  - '@distilled.cloud/axiom@1.0.0-rc.13'
+  - '@distilled.cloud/cloudflare@1.0.0-rc.13'
+  - '@distilled.cloud/core@1.0.0-rc.13'
+  - '@distilled.cloud/doppler@1.0.0-rc.13'
+  - '@distilled.cloud/fly-io@1.0.0-rc.13'
+  - '@distilled.cloud/gcp@1.0.0-rc.13'
+  - '@distilled.cloud/hetzner@1.0.0-rc.13'
+  - '@distilled.cloud/infisical@1.0.0-rc.13'
+  - '@distilled.cloud/neon@1.0.0-rc.13'
+  - '@distilled.cloud/planetscale@1.0.0-rc.13'
+  - '@distilled.cloud/prisma@1.0.0-rc.13'
+  - '@distilled.cloud/railway@1.0.0-rc.13'
+  - '@distilled.cloud/stripe@1.0.0-rc.13'
+  - '@distilled.cloud/zerossl@1.0.0-rc.13'
+  - alchemy@2.0.0-beta.80
+  - '@foldkit/ui@0.165.0'
+  - foldkit@0.165.0
+  - '@foldkit/vite-plugin@0.26.0'
